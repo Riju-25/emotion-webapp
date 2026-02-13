@@ -1,7 +1,7 @@
 streamlit==1.31.1
 streamlit-webrtc==0.47.1
-torch==2.1.2
-torchvision==0.16.2
+torch==2.5.1
+torchvision==0.20.1
 opencv-python-headless==4.8.1.78
 numpy
 pillow
