@@ -5,8 +5,10 @@ import torchvision.transforms as transforms
 from torchvision import models
 import cv2
 import numpy as np
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 
+from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
+
+st.set_page_config(page_title="Emotion Detection", layout="centered")
 st.title("Real-Time Emotion Detection")
 
 device = torch.device("cpu")
@@ -19,8 +21,11 @@ def load_model():
     model = models.resnet18(weights=None)
     num_features = model.fc.in_features
 
-    # MUST match training architecture
-    model.fc = nn.Linear(num_features, 7)
+    # MUST MATCH TRAINING ARCHITECTURE
+    model.fc = nn.Sequential(
+        nn.Dropout(0.5),
+        nn.Linear(num_features, 7)
+    )
 
     model.load_state_dict(
         torch.load("emotion_resnet18_finetuned.pth", map_location=device)
@@ -34,7 +39,7 @@ def load_model():
 model = load_model()
 
 # -------------------------
-# CLASS NAMES
+# CLASS LABELS
 # -------------------------
 class_names = [
     "Angry",
@@ -47,7 +52,7 @@ class_names = [
 ]
 
 # -------------------------
-# TRANSFORM
+# IMAGE TRANSFORM
 # -------------------------
 transform = transforms.Compose([
     transforms.ToPILImage(),
@@ -68,10 +73,10 @@ face_cascade = cv2.CascadeClassifier(
 )
 
 # -------------------------
-# VIDEO TRANSFORMER
+# VIDEO PROCESSOR
 # -------------------------
-class EmotionDetector(VideoTransformerBase):
-    def transform(self, frame):
+class EmotionProcessor(VideoProcessorBase):
+    def recv(self, frame):
         img = frame.to_ndarray(format="bgr24")
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
@@ -121,9 +126,19 @@ class EmotionDetector(VideoTransformerBase):
 
 
 # -------------------------
-# START CAMERA
+# STABLE ICE CONFIGURATION
+# -------------------------
+rtc_config = RTCConfiguration(
+    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+)
+
+# -------------------------
+# START WEBRTC
 # -------------------------
 webrtc_streamer(
     key="emotion-detection",
-    video_transformer_factory=EmotionDetector
+    video_processor_factory=EmotionProcessor,
+    rtc_configuration=rtc_config,
+    media_stream_constraints={"video": True, "audio": False},
+    async_processing=True,
 )
